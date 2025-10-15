@@ -24,23 +24,19 @@ body {
 .appointment-checkup {
   background-color: #3b82f6;
   border-color: #2563eb;
-  width: 40%;
 }
 
 .appointment-consultation {
   background-color: #10b981;
   border-color: #059669;
-  width: 40%;
 }
 
 .appointment-follow-up {
   background-color: #f59e0b;
   border-color: #d97706;
-  width: 40%;
 }
 
 .appointment-procedure {
   background-color: #8b5cf6;
   border-color: #7c3aed;
-  width: 40%;
 }
