@@ -16,6 +16,7 @@
 
 import { useState, useEffect } from 'react';
 import type { Doctor } from '@/types';
+import { appointmentService } from '@/services/appointmentService';
 
 interface DoctorSelectorProps {
   selectedDoctorId: string;
@@ -43,15 +44,8 @@ export function DoctorSelector({
 
   // TODO: Fetch doctors
   useEffect(() => {
-    // Option 1: Use appointmentService to get doctors
-    // const allDoctors = appointmentService.getAllDoctors();
-    // setDoctors(allDoctors);
-
-    // Option 2: Import MOCK_DOCTORS directly
-    // import { MOCK_DOCTORS } from '@/data/mockData';
-    // setDoctors(MOCK_DOCTORS);
-
-    console.log('TODO: Fetch doctors');
+    const allDoctors = appointmentService.getAllDoctors();
+    setDoctors(allDoctors);
   }, []);
 
   // Find currently selected doctor for display

@@ -14,7 +14,11 @@
 
 'use client';
 
-import type { Appointment, Doctor } from '@/types';
+import type { Appointment, Doctor, TimeSlot } from '@/types';
+import { addDays, format, isSameDay, startOfWeek } from 'date-fns';
+import { generateTimeSlots as generateSlots } from '@/app/domain/TimeSlot';
+import AppointmentCard from './ui/AppointmentCard';
+import { getPatientById } from '@/data/mockData';
 
 interface WeekViewProps {
   appointments: Appointment[];
@@ -22,76 +26,88 @@ interface WeekViewProps {
   weekStartDate: Date; // Should be a Monday
 }
 
-/**
- * WeekView Component
- *
- * Renders a weekly calendar grid with appointments.
- *
- * TODO: Implement this component
- *
- * Architecture suggestions:
- * 1. Generate an array of 7 dates (Mon-Sun) from weekStartDate
- * 2. Generate time slots (same as DayView: 8 AM - 6 PM)
- * 3. Create a grid: rows = time slots, columns = days
- * 4. Position appointments in the correct cell (day + time)
- *
- * Consider:
- * - How to make the grid scrollable horizontally on mobile?
- * - How to show day names and dates in headers?
- * - How to handle appointments that span multiple hours?
- * - Should you reuse logic from DayView?
- */
 export function WeekView({ appointments, doctor, weekStartDate }: WeekViewProps) {
-  /**
-   * TODO: Generate array of 7 dates (Monday through Sunday)
-   *
-   * Starting from weekStartDate, create an array of the next 7 days
-   */
   function getWeekDays(): Date[] {
-    // TODO: Implement week days generation
-    // Example:
-    // return [
-    //   new Date(weekStartDate), // Monday
-    //   addDays(weekStartDate, 1), // Tuesday
-    //   ...
-    //   addDays(weekStartDate, 6), // Sunday
-    // ];
-    return [];
+    const start = startOfWeek(weekStartDate, { weekStartsOn: 1 });
+    return Array.from({ length: 7 }, (_, i) => addDays(start, i));
   }
 
-  /**
-   * TODO: Generate time slots (same as DayView)
-   */
-  function generateTimeSlots() {
-    // TODO: Implement (can be same as DayView)
-    return [];
+  function generateTimeSlots(): TimeSlot[] {
+    return generateSlots(weekStartDate);
   }
 
-  /**
-   * TODO: Get appointments for a specific day
-   */
-  function getAppointmentsForDay(date: Date): Appointment[] {
-    // TODO: Filter appointments that fall on this specific day
-    return [];
+  function minutesBetween(startIso: string, endIso: string): number {
+    const s = new Date(startIso).getTime();
+    const e = new Date(endIso).getTime();
+    return Math.max(0, Math.round((e - s) / 60000));
   }
 
-  /**
-   * TODO: Get appointments for a specific day and time slot
-   */
-  function getAppointmentsForDayAndSlot(date: Date, slotStart: Date): Appointment[] {
-    // TODO: Filter appointments for this day and time
-    return [];
+  const typeBadgeClass: Record<string, string> = {
+    'checkup': 'bg-blue-100 text-blue-800 ring-blue-200',
+    'consultation': 'bg-emerald-100 text-emerald-800 ring-emerald-200',
+    'follow-up': 'bg-amber-100 text-amber-800 ring-amber-200',
+    'procedure': 'bg-violet-100 text-violet-800 ring-violet-200',
+  };
+
+  const statusBadgeClass: Record<string, string> = {
+    'scheduled': 'bg-slate-100 text-slate-800 ring-slate-200',
+    'completed': 'bg-green-100 text-green-800 ring-green-200',
+    'cancelled': 'bg-rose-100 text-rose-800 ring-rose-200',
+    'no-show': 'bg-orange-100 text-orange-800 ring-orange-200',
+  };
+
+  const patientPalette = [
+    'bg-cyan-100 text-cyan-800 ring-cyan-200',
+    'bg-sky-100 text-sky-800 ring-sky-200',
+    'bg-teal-100 text-teal-800 ring-teal-200',
+    'bg-pink-100 text-pink-800 ring-pink-200',
+    'bg-indigo-100 text-indigo-800 ring-indigo-200',
+    'bg-lime-100 text-lime-800 ring-lime-200',
+  ];
+  function patientBadgeClass(patientId: string): string {
+    let hash = 0;
+    for (let i = 0; i < patientId.length; i++) hash = (hash + patientId.charCodeAt(i)) % 2147483647;
+    const idx = Math.abs(hash) % patientPalette.length;
+    return patientPalette[idx];
   }
 
   const weekDays = getWeekDays();
   const timeSlots = generateTimeSlots();
 
+  const rows: Array<{
+    id: string;
+    dayLabel: string;
+    timeLabel: string;
+    patientId: string;
+    patient: string;
+    type: string;
+    duration: number;
+    status: string;
+  }> = [];
+
+  weekDays.forEach((day) => {
+    const dayApts = appointments
+      .filter((apt) => isSameDay(new Date(apt.startTime), day))
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+    dayApts.forEach((apt) => {
+      rows.push({
+        id: apt.id,
+        dayLabel: `${format(day, 'EEE')} ${format(day, 'MMM d')}`,
+        timeLabel: `${new Date(apt.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(apt.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+        patientId: apt.patientId,
+        patient: getPatientById(apt.patientId)?.name ?? 'Unknown Patient',
+        type: apt.type,
+        duration: minutesBetween(apt.startTime, apt.endTime),
+        status: apt.status,
+      });
+    });
+  });
+
   return (
     <div className="week-view">
-      {/* Week header */}
       <div className="mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">
-          {/* TODO: Format week range (e.g., "Oct 14 - Oct 20, 2024") */}
+        <h3 className="text-xl font-semibold text-gray-900 tracking-tight">
           Week View
         </h3>
         {doctor && (
@@ -101,69 +117,63 @@ export function WeekView({ appointments, doctor, weekStartDate }: WeekViewProps)
         )}
       </div>
 
-      {/* Week grid - may need horizontal scroll on mobile */}
-      <div className="border border-gray-200 rounded-lg overflow-x-auto">
-        {/* TODO: Implement the week grid */}
-        <div className="text-center text-gray-500 py-12">
-          <p>Week View Grid Goes Here</p>
-          <p className="text-sm mt-2">
-            Implement 7-day grid (Mon-Sun) with time slots
-          </p>
-
-          {/* Placeholder to show appointments exist */}
-          {appointments.length > 0 && (
-            <div className="mt-4">
-              <p className="text-sm font-medium">
-                {appointments.length} appointment(s) for this week
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* TODO: Replace above with actual grid implementation */}
-        {/* Example structure:
-        <table className="min-w-full">
-          <thead>
-            <tr>
-              <th className="w-20 p-2 text-xs bg-gray-50">Time</th>
-              {weekDays.map((day, index) => (
-                <th key={index} className="p-2 text-xs bg-gray-50 border-l">
-                  <div className="font-semibold">{format(day, 'EEE')}</div>
-                  <div className="text-gray-600">{format(day, 'MMM d')}</div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {timeSlots.map((slot, slotIndex) => (
-              <tr key={slotIndex} className="border-t">
-                <td className="p-2 text-xs text-gray-600">{slot.label}</td>
-                {weekDays.map((day, dayIndex) => (
-                  <td key={dayIndex} className="p-1 border-l align-top min-h-[60px]">
-                    {getAppointmentsForDayAndSlot(day, slot.start).map(apt => (
-                      <AppointmentCard key={apt.id} appointment={apt} compact />
-                    ))}
-                  </td>
-                ))}
+      <div className="bg-white border border-gray-300 rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full table-fixed border-collapse">
+            <colgroup>
+              <col className="w-1/6" />
+              <col className="w-1/6" />
+              <col className="w-1/6" />
+              <col className="w-1/6" />
+              <col className="w-1/6" />
+              <col className="w-1/6" />
+            </colgroup>
+            <thead className="bg-gray-100">
+              <tr className="text-left text-xs font-semibold text-gray-700">
+                <th className="px-4 py-3 border border-gray-300">Day</th>
+                <th className="px-4 py-3 border border-gray-300">Time</th>
+                <th className="px-4 py-3 border border-gray-300">Patient</th>
+                <th className="px-4 py-3 border border-gray-300">Type</th>
+                <th className="px-4 py-3 border border-gray-300">Duration</th>
+                <th className="px-4 py-3 border border-gray-300">Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        */}
-      </div>
-
-      {/* Empty state */}
-      {appointments.length === 0 && (
-        <div className="mt-4 text-center text-gray-500 text-sm">
-          No appointments scheduled for this week
+            </thead>
+            <tbody>
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500 border border-gray-300">No appointments scheduled for this week</td>
+                </tr>
+              )}
+              {rows.map((r, i) => (
+                <tr key={r.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap border border-gray-300">{r.dayLabel}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap border border-gray-300">{r.timeLabel}</td>
+                  <td className="px-4 py-3 text-sm text-gray-900 border border-gray-300">
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${patientBadgeClass(r.patientId)}`}>
+                      {r.patient}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 border border-gray-300">
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset capitalize ${typeBadgeClass[r.type]}`}>
+                      {r.type.replace('-', ' ')}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-700 border border-gray-300">{r.duration} min</td>
+                  <td className="px-4 py-3 border border-gray-300">
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset capitalize ${statusBadgeClass[r.status]}`}>
+                      {r.status.replace('-', ' ')}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
 /**
- * TODO: Consider reusing the AppointmentCard component from DayView
- *
- * You might want to add a "compact" prop to make it smaller for week view
+ * List table view version for the week
  */

@@ -15,6 +15,10 @@
 'use client';
 
 import type { Appointment, Doctor, TimeSlot } from '@/types';
+import { generateTimeSlots as generateSlots } from '@/app/domain/TimeSlot';
+import { getAppointmentsForSlot as getAptsForSlot } from '@/hooks/getAppointmentsForSlot';
+import AppointmentCard from './ui/AppointmentCard';
+import { getPatientById } from '@/data/mockData';
 
 interface DayViewProps {
   appointments: Appointment[];
@@ -43,43 +47,73 @@ interface DayViewProps {
  */
 export function DayView({ appointments, doctor, date }: DayViewProps) {
   /**
-   * TODO: Generate time slots
-   *
-   * Create an array of TimeSlot objects from 8 AM to 6 PM
-   * with 30-minute intervals
-   *
-   * Hint: You can use a loop or date-fns utilities
+   * Generate time slots (8 AM - 6 PM)
    */
   function generateTimeSlots(): TimeSlot[] {
-    // TODO: Implement time slot generation
-    // Example structure:
-    // return [
-    //   { start: new Date(...8:00), end: new Date(...8:30), label: '8:00 AM' },
-    //   { start: new Date(...8:30), end: new Date(...9:00), label: '8:30 AM' },
-    //   ...
-    // ];
-    return [];
+    return generateSlots(date);
   }
 
   /**
-   * TODO: Find appointments for a specific time slot
-   *
-   * Given a time slot, find all appointments that overlap with it
+   * Find appointments for a specific time slot
    */
   function getAppointmentsForSlot(slot: TimeSlot): Appointment[] {
-    // TODO: Implement appointment filtering
-    // Check if appointment.startTime or appointment.endTime falls within the slot
-    return [];
+    return getAptsForSlot({ start: slot.start, end: slot.end }, appointments);
   }
 
   const timeSlots = generateTimeSlots();
+
+  // Derived data for table view
+  const dayAppointments = [...appointments]
+    .filter((apt) => {
+      const d = new Date(apt.startTime);
+      return (
+        d.getFullYear() === date.getFullYear() &&
+        d.getMonth() === date.getMonth() &&
+        d.getDate() === date.getDate()
+      );
+    })
+    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+  function minutesBetween(startIso: string, endIso: string): number {
+    const s = new Date(startIso).getTime();
+    const e = new Date(endIso).getTime();
+    return Math.max(0, Math.round((e - s) / 60000));
+  }
+
+  const typeBadgeClass: Record<string, string> = {
+    'checkup': 'bg-blue-100 text-blue-800 ring-blue-200',
+    'consultation': 'bg-emerald-100 text-emerald-800 ring-emerald-200',
+    'follow-up': 'bg-amber-100 text-amber-800 ring-amber-200',
+    'procedure': 'bg-violet-100 text-violet-800 ring-violet-200',
+  };
+
+  const statusBadgeClass: Record<string, string> = {
+    'scheduled': 'bg-slate-100 text-slate-800 ring-slate-200',
+    'completed': 'bg-green-100 text-green-800 ring-green-200',
+    'cancelled': 'bg-rose-100 text-rose-800 ring-rose-200',
+    'no-show': 'bg-orange-100 text-orange-800 ring-orange-200',
+  };
+
+  const patientPalette = [
+    'bg-cyan-100 text-cyan-800 ring-cyan-200',
+    'bg-sky-100 text-sky-800 ring-sky-200',
+    'bg-teal-100 text-teal-800 ring-teal-200',
+    'bg-pink-100 text-pink-800 ring-pink-200',
+    'bg-indigo-100 text-indigo-800 ring-indigo-200',
+    'bg-lime-100 text-lime-800 ring-lime-200',
+  ];
+  function patientBadgeClass(patientId: string): string {
+    let hash = 0;
+    for (let i = 0; i < patientId.length; i++) hash = (hash + patientId.charCodeAt(i)) % 2147483647;
+    const idx = Math.abs(hash) % patientPalette.length;
+    return patientPalette[idx];
+  }
 
   return (
     <div className="day-view">
       {/* Day header */}
       <div className="mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">
-          {/* TODO: Format date nicely (e.g., "Monday, October 15, 2024") */}
+        <h3 className="text-xl font-semibold text-gray-900 tracking-tight">
           {date.toDateString()}
         </h3>
         {doctor && (
@@ -89,64 +123,95 @@ export function DayView({ appointments, doctor, date }: DayViewProps) {
         )}
       </div>
 
-      {/* Timeline grid */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden">
-        {/* TODO: Implement the timeline */}
-        <div className="text-center text-gray-500 py-12">
-          <p>Day View Timeline Goes Here</p>
-          <p className="text-sm mt-2">
-            Implement time slots (8 AM - 6 PM) and position appointments
-          </p>
-
-          {/* Placeholder to show appointments exist */}
-          {appointments.length > 0 && (
-            <div className="mt-4">
-              <p className="text-sm font-medium">
-                {appointments.length} appointment(s) for this day
-              </p>
-            </div>
-          )}
+      {/* Table view of appointments */}
+      <div className="bg-white border border-gray-300 rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full table-fixed border-collapse">
+            <colgroup>
+              <col className="w-1/5" />
+              <col className="w-1/5" />
+              <col className="w-1/5" />
+              <col className="w-1/5" />
+              <col className="w-1/5" />
+            </colgroup>
+            <thead className="bg-gray-100">
+              <tr className="text-left text-xs font-semibold text-gray-700">
+                <th className="px-4 py-3 border border-gray-300">Time</th>
+                <th className="px-4 py-3 border border-gray-300">Patient</th>
+                <th className="px-4 py-3 border border-gray-300">Type</th>
+                <th className="px-4 py-3 border border-gray-300">Duration</th>
+                <th className="px-4 py-3 border border-gray-300">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dayAppointments.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500 border border-gray-300">
+                    No appointments scheduled for this day
+                  </td>
+                </tr>
+              )}
+              {dayAppointments.map((apt, i) => {
+                const patient = getPatientById(apt.patientId);
+                const patientName = patient?.name ?? 'Unknown Patient';
+                const start = new Date(apt.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const end = new Date(apt.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const duration = minutesBetween(apt.startTime, apt.endTime);
+                return (
+                  <tr key={apt.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                    <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap border border-gray-300">{start} - {end}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900 border border-gray-300">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${patientBadgeClass(apt.patientId)}`}>
+                        {patientName}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 border border-gray-300">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset capitalize ${typeBadgeClass[apt.type]}`}>
+                        {apt.type.replace('-', ' ')}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-700 border border-gray-300">{duration} min</td>
+                    <td className="px-4 py-3 border border-gray-300">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset capitalize ${statusBadgeClass[apt.status]}`}>
+                        {apt.status.replace('-', ' ')}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-
-        {/* TODO: Replace above with actual timeline implementation */}
-        {/* Example structure:
-        <div className="divide-y divide-gray-100">
-          {timeSlots.map((slot, index) => (
-            <div key={index} className="flex">
-              <div className="w-24 p-2 text-sm text-gray-600">
-                {slot.label}
-              </div>
-              <div className="flex-1 p-2 min-h-[60px] relative">
-                {getAppointmentsForSlot(slot).map(appointment => (
-                  <AppointmentCard key={appointment.id} appointment={appointment} />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-        */}
       </div>
 
-      {/* Empty state */}
-      {appointments.length === 0 && (
-        <div className="mt-4 text-center text-gray-500 text-sm">
-          No appointments scheduled for this day
-        </div>
-      )}
+      {/* The original timeline grid kept commented for reference */}
+      {/*
+      <div className="border border-gray-200 rounded-lg overflow-hidden divide-y divide-gray-100 bg-white mt-6">
+        {timeSlots.map((slot, index) => (
+          <div key={index} className="flex">
+            <div className="w-24 p-2 text-xs text-gray-500 bg-gray-50">
+              {slot.label}
+            </div>
+            <div className="flex-1 p-2 min-h-[60px] relative">
+              {getAppointmentsForSlot(slot).map((appointment) => {
+                const patientName = getPatientById(appointment.patientId)?.name ?? 'Unknown Patient';
+                return (
+                  <AppointmentCard
+                    key={appointment.id}
+                    appointment={appointment}
+                    patientName={patientName}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+      */}
     </div>
   );
 }
 
 /**
- * TODO: Create an AppointmentCard component
- *
- * This should be a small, reusable component that displays
- * a single appointment with appropriate styling.
- *
- * Consider:
- * - Show patient name
- * - Show appointment type
- * - Show duration
- * - Color-code by appointment type (use APPOINTMENT_TYPE_CONFIG from types)
- * - Make it visually clear when appointments span multiple slots
+ * AppointmentCard is reused from components/ui
  */
